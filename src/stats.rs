@@ -36,23 +36,39 @@ grep -E '^(MemTotal|MemAvailable|MemFree|Buffers|Cached):' /proc/meminfo; \
 for b in /sys/class/power_supply/BAT*; do [ -r \"$b/capacity\" ] && echo \"BAT $(cat \"$b/capacity\") $(cat \"$b/status\" 2>/dev/null)\"; done; true";
 
 pub async fn poll(s: &Stats, id: String, target: Target) -> Result<HostStats, String> {
-    let cached = s.links.lock().await.get(&id).cloned();
+    let out = exec(s, &id, &target, SCRIPT, 10).await?;
+    parse(&out.stdout)
+}
+
+/// What a command printed and how it ended.
+#[derive(Debug, Default)]
+pub struct Output {
+    pub stdout: String,
+    pub stderr: String,
+    pub code: Option<u32>,
+}
+
+/// Runs one command over the host's kept connection (the containers screen shares it with the usage line),
+/// logging in again once when the kept connection has gone away.
+pub async fn exec(s: &Stats, id: &str, target: &Target, script: &str, secs: u64) -> Result<Output, String> {
+    let cached = s.links.lock().await.get(id).cloned();
     if let Some(link) = cached {
-        match run(&link).await {
-            Ok(text) => return parse(&text),
+        match run(&link, script, secs).await {
+            Ok(out) => return Ok(out),
+            Err(e) if e.starts_with("TIMEOUT|") => return Err(e),
             Err(_) => {
                 // The kept connection went away (host slept, network changed): log in again below.
-                s.links.lock().await.remove(&id);
+                s.links.lock().await.remove(id);
             }
         }
     }
-    let link = tokio::time::timeout(Duration::from_secs(20), ssh::connect(&target, Arc::new(Mutex::new(HashMap::new()))))
+    let link = tokio::time::timeout(Duration::from_secs(20), ssh::connect(target, Arc::new(Mutex::new(HashMap::new()))))
         .await
         .map_err(|_| "OFFLINE|Timed out".to_string())??;
     let link = Arc::new(link);
-    let text = run(&link).await?;
-    s.links.lock().await.insert(id, link);
-    parse(&text)
+    let out = run(&link, script, secs).await?;
+    s.links.lock().await.insert(id.to_string(), link);
+    Ok(out)
 }
 
 pub async fn forget(s: &Stats, id: &str) {
@@ -68,25 +84,35 @@ pub async fn forget_all(s: &Stats) {
     }
 }
 
-async fn run(link: &Link) -> Result<String, String> {
+async fn run(link: &Link, script: &str, secs: u64) -> Result<Output, String> {
     let mut ch = link.conn.channel_open_session().await.map_err(|e| e.to_string())?;
-    ch.exec(true, SCRIPT).await.map_err(|e| e.to_string())?;
-    let mut out = Vec::new();
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    ch.exec(true, script).await.map_err(|e| e.to_string())?;
+    let (mut out, mut err, mut code) = (Vec::new(), Vec::new(), None);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(secs);
     loop {
         match tokio::time::timeout_at(deadline, ch.wait()).await {
             Ok(Some(ChannelMsg::Data { data })) => out.extend_from_slice(&data),
-            Ok(Some(ChannelMsg::Eof)) | Ok(Some(ChannelMsg::Close)) | Ok(None) => break,
+            Ok(Some(ChannelMsg::ExtendedData { data, .. })) => err.extend_from_slice(&data),
+            Ok(Some(ChannelMsg::ExitStatus { exit_status })) => code = Some(exit_status),
+            Ok(Some(ChannelMsg::Eof)) if code.is_some() => break,
+            Ok(Some(ChannelMsg::Close)) | Ok(None) => break,
             Ok(Some(_)) => {}
-            Err(_) => return Err("Timed out reading usage".into()),
+            Err(_) => {
+                let _ = ch.close().await;
+                return Err("TIMEOUT|The server took too long to answer".into());
+            }
         }
     }
     let _ = ch.close().await;
-    Ok(String::from_utf8_lossy(&out).into_owned())
+    Ok(Output {
+        stdout: String::from_utf8_lossy(&out).into_owned(),
+        stderr: String::from_utf8_lossy(&err).into_owned(),
+        code,
+    })
 }
 
 /// Busy and total jiffies from a `cpu  user nice system idle iowait irq softirq steal ...` line.
-fn cpu_times(line: &str) -> Option<(u64, u64)> {
+pub(crate) fn cpu_times(line: &str) -> Option<(u64, u64)> {
     let mut it = line.split_whitespace();
     if it.next()? != "cpu" {
         return None;

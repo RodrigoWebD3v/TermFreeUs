@@ -94,3 +94,52 @@ Source: `PC_HOTKEYS` and `switchToTab` in `reconnectSaga-*.js` / `ui-process-*.j
 - Errors: `KEY_PASSPHRASE` (key locked: the app asks for the key's passphrase and can save it with the key),
   `KEY_REFUSED` (server takes only keys and refused them), `AUTH_FAILED` (wrong password). Verified against the
   person's EC2 host (publickey only): the locked ed25519 key opens with the host's saved password and logs in.
+
+## Containers (added at the person's request; not in the original)
+- New side menu item **Containers** right after Hosts. It lists the Docker containers of every saved host whose login
+  works on its own (same rule as host usage: saved username, password or key, already trusted host key), one block per
+  host, grouped by project. Settings → Terminal → "Show Docker containers" turns it off.
+- Read with one command over the connection the usage line already keeps open: `docker ps -a`, one
+  `docker stats --no-stream` sample and `docker service ls` (empty when the host isn't a Swarm manager).
+  Refreshed every 10 s while the Containers screen is open and every 30 s (**estimated**) for the host card count.
+- Easypanel runs on Docker Swarm: each app is a service `<project>_<service>`. A service is one row (its running tasks'
+  CPU, RAM and network added up, `running/wanted` replicas); exited tasks of a service are history and are not listed.
+  Project = stack label, else compose project label, else the part of the service name before the first `_`.
+- Row colours: red when a service has fewer tasks than wanted, or a container is restarting, dead or exited with a
+  non-zero code; amber when unhealthy or paused; grey when stopped (service scaled to 0, container exited with 0).
+- Actions: **Logs** opens a terminal tab with `docker logs -f --tail 200` (`docker service logs` for services);
+  **Shell** opens one with `docker exec -it <container> sh -c '…bash, else sh'` (the service's first running task);
+  **Start / Stop / Restart** ask first (except Start). Plain containers use `docker start|stop|restart`. Services:
+  stop = `docker service update --replicas 0` keeping the old count in the service label `shellbox.replicas`;
+  start = back to that count (1 when unknown); restart = `docker service update --force`. Global services can't be stopped.
+  Names are checked against Docker's name characters before any command is built.
+- Host cards show "N running · N stopped · N down" under the usage line (grid layout); clicking it opens that host on
+  the Containers screen. Hosts without Docker show nothing and aren't asked again until their login changes.
+
+## Servers screen (added at the person's request; not in the original)
+- Side menu item **Servers** right after Hosts: one card per host whose login works on its own (same rule as host usage).
+- Read every 2 s while the screen is open (nothing is read while it is closed), over the connection the usage line keeps
+  open. One command: `/proc/uptime`, `/proc/loadavg`, `nproc`, hostname, kernel, `/etc/os-release`, two `/proc/stat` and
+  `/proc/net/dev` samples 1 s apart, `/proc/meminfo` (with swap) and `df -P` without tmpfs/overlay/squashfs.
+- Shows uptime, load average (amber/red when load per CPU passes 80/120 %), CPU (and the share waiting on disk when ≥ 1 %),
+  memory and swap, the root disk, and network down/up per second summed over real interfaces (loopback, veth, docker,
+  br-, virbr, cni, flannel, calico, vxlan, kube and weave interfaces are left out because their traffic is counted twice).
+- Two charts per server: CPU and RAM (%, one 0–100 axis) and network (down/up, one bytes-per-second axis), blue #2091f6 and
+  orange #e0682e (validated for colour-blind separation on the light and dark card surfaces). The time window grows with
+  the history from 1 to 10 minutes; hovering shows a crosshair with every value at that moment.
+- Under the charts: other disks over 500 MB, and the 4 busiest containers from the Containers reading (refreshed every 30 s).
+- A server that stops answering keeps its last numbers dimmed with the error above them, and is tried again after 30 s
+  (**estimated**).
+
+## Traefik traffic on the Servers screen (added at the person's request; not in the original)
+- Easypanel starts Traefik with `TRAEFIK_ACCESSLOG=true` (no metrics endpoint), so every request is a line in the Traefik
+  container's log: `"<method> <path> <proto>" <status> <size> … <count> "<router>" "<backend>" <ms>ms`.
+- Every 2 s while the Servers screen is open: `docker logs --timestamps --tail 3000 --since <last line read>` on the running
+  container whose name contains `traefik` (reads from the end of the file: ~50 ms on a 10 MB log). The first read shows
+  the last 2 minutes. More than 3000 new lines in one read means some were skipped, and the panel says so.
+- Once a minute, Traefik's own API (`wget http://127.0.0.1:8080/api/http/routers` inside the container) gives the domains of
+  each router (`Host(...)` rules). Router `https-back_api02-0@file` → Easypanel service `back_api02`.
+- Query strings are removed from paths before they reach the screen (they can carry tokens). Client IPs are not kept.
+- Panel per server: requests/s and data sent (last 10 s), share of 5xx and response time (average and 95th percentile) over
+  the last 5 minutes, a requests/s + 5xx/s chart (10 minutes), a per-service table (requests/min, 4xx, 5xx, average,
+  95 %, data sent, first domain) and the latest 8 errors 5xx. Hosts without a running Traefik show no panel.

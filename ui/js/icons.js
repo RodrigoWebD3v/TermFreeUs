@@ -53,6 +53,9 @@
     check: '<path d="M5 12l5 5L20 7"/>',
     bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
     bell: '<path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>',
+    pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+    box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+    database: '<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
     cloud: '<path d="M7 18a4.5 4.5 0 01-.6-9A6 6 0 0118 9.5 4.3 4.3 0 0117.5 18z"/>',
   };
   // Filled shapes for the top tabs.

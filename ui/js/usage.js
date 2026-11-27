@@ -20,6 +20,8 @@
     return t;
   };
 
+  U.eligible = eligible;
+
   const pollHost = async (host) => {
     const t = eligible(host);
     const st = (U.state[host.id] = U.state[host.id] || {});

@@ -80,7 +80,8 @@
         tg("Bell sound", "bell"),
         tg("Use bright colours for bold text", "brightBold"),
         tg("Use this computer's SSH keys", "localKeys", "Hosts without a key or password of their own try the keys in your .ssh folder, like the ssh command does."),
-        tg("Show host usage on host cards", "hostUsage", "CPU, memory and battery of hosts whose saved login works, refreshed every 10 seconds (Linux hosts).")));
+        tg("Show host usage on host cards", "hostUsage", "CPU, memory and battery of hosts whose saved login works, refreshed every 10 seconds (Linux hosts)."),
+        tg("Show Docker containers", "hostContainers", "The Containers screen and a running / stopped count on host cards, for hosts whose saved login works (Docker and Easypanel).")));
       const ka = h("input", { class: "input", style: "width:120px", value: s.keepalive || 0 });
       ka.onchange = () => { s.keepalive = Math.max(0, parseInt(ka.value, 10) || 0); ka.value = s.keepalive; save(); };
       const sb = h("input", { class: "input", style: "width:120px", type: "number", value: s.scrollback });

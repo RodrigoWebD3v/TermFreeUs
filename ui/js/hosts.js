@@ -129,13 +129,15 @@
       const c = App.resolveHost(x);
       const live = App.terminal.isConnected(x.id);
       const usage = App.usage.badge(x.id);
-      const card = h("div", { class: "card" + (H.selected === x.id ? " selected" : "") + (usage.classList.contains("on") ? " has-usage" : ""), "data-host": x.id },
+      const cbadge = App.containers.badge(x.id);
+      const card = h("div", { class: "card" + (H.selected === x.id ? " selected" : "") + (usage.classList.contains("on") ? " has-usage" : "") + (cbadge.classList.contains("on") ? " has-cbadge" : ""), "data-host": x.id },
         App.avatar(x.os, App.hostLabel(x)),
         h("div", { class: "info" },
           h("div", { class: "title" }, App.hostLabel(x)),
           h("div", { class: "subtitle" }, "ssh" + (c.username ? ", " + c.username : "") + (x.label && x.label !== x.address ? "" : "")),
           (x.tags || []).length ? h("div", { class: "tagline" }, ...(x.tags || []).slice(0, 3).map((t) => h("span", { class: "tag" }, t))) : null,
-          usage));
+          usage,
+          cbadge));
       if (live) card.append(h("span", { class: "dot", style: "width:8px;height:8px;border-radius:50%;background:var(--green);position:absolute;left:46px;top:12px" }));
       const edit = h("button", { class: "icon-btn", title: "Edit", html: Icon("edit", 14) });
       edit.onclick = (e) => { e.stopPropagation(); H.editHost(x); };

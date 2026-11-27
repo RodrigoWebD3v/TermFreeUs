@@ -38,6 +38,7 @@
     autoReconnect: false,
     logsEnabled: true,
     hostUsage: true,
+    hostContainers: true,
     localKeys: true,
     layout: "grid",
     sort: "az",

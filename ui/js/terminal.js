@@ -242,7 +242,7 @@
 
   // ---------- SSH ----------
   T.connectHost = (host, opts = {}) => {
-    const tab = newTab(App.hostLabel(host), "ssh", host);
+    const tab = newTab(opts.title || App.hostLabel(host), "ssh", host);
     tab.startup = opts.startup || null;
     T.startSsh(tab, App.targetFor(host));
     if (!host.quick) { host.lastUsed = Date.now(); App.save(); }
